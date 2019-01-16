@@ -149,10 +149,10 @@ public:
 		}
 
 		// Add a new block table record.
-		AcDbBlockTableRecord* pBTRec = new AcDbBlockTableRecord;
+		//AcDbBlockTableRecord* pBTRec = new AcDbBlockTableRecord;
+		AcDbBlockTableRecord* pBTRec;
 		if ((es = pBlockTable->getAt(ACDB_MODEL_SPACE, pBTRec, AcDb::kForWrite)) != Acad::eOk) {
 			acutPrintf(_T("\nCouldn't add the block table record!"));
-			delete pBTRec;
 			pBlockTable->close();
 			return;
 		}
@@ -165,11 +165,13 @@ public:
 
 		// Get the center point of the circle.
 		if (RTNORM != acedGetPoint(NULL, _T("Specify center point  for circle: "), pointCenter)) {
+			pBTRec->close();
 			return;
 		}
 
 		// Get the radius of the circle.
 		if (RTNORM != acedGetReal(_T("\nEnter a radius of the circle: "), &dRadius)) {
+			pBTRec->close();
 			return;
 		}
 
@@ -180,8 +182,8 @@ public:
 		// Append to the database.
 		AcDbObjectId circleId;
 		if ((es = pBTRec->appendAcDbEntity(circleId, pCircle)) != Acad::eOk) {
-			delete pCircle;
 			pBTRec->close();
+			delete pCircle;
 			return;
 		}
 		pBTRec->close();
@@ -201,10 +203,9 @@ public:
 		}
 
 		// Add a new block table record.
-		AcDbBlockTableRecord* pBTRec = new AcDbBlockTableRecord;
+		AcDbBlockTableRecord* pBTRec;
 		if ((es = pBlockTable->getAt(ACDB_MODEL_SPACE, pBTRec, AcDb::kForWrite)) != Acad::eOk) {
 			acutPrintf(_T("\nCouldn't add the block table record!"));
-			delete pBTRec;
 			pBlockTable->close();
 			return;
 		}
@@ -216,14 +217,17 @@ public:
 
 		// Get the points.
 		if (RTNORM != acedGetPoint(NULL, _T("Specify Pt1 point: "), Pt1)) {
+			pBTRec->close();
 			return;
 		}
 
 		if (RTNORM != acedGetPoint(NULL, _T("Specify Pt2 point: "), Pt2)) {
+			pBTRec->close();
 			return;
 		}
 
 		if (RTNORM != acedGetPoint(NULL, _T("Specify Pt3 point: "), Pt3)) {
+			pBTRec->close();
 			return;
 		}
 
@@ -232,8 +236,8 @@ public:
 		// Append to the database.
 		AcDbObjectId lineId1;
 		if ((es = pBTRec->appendAcDbEntity(lineId1, pLine1)) != Acad::eOk) {
-			delete pLine1;
 			pBTRec->close();
+			delete pLine1;
 			return;
 		}
 
@@ -242,8 +246,8 @@ public:
 		AcDbObjectId lineId2;
 		if ((es = pBTRec->appendAcDbEntity(lineId2, pLine2)) != Acad::eOk) {
 			pLine1->close();
-			delete pLine2;
 			pBTRec->close();
+			delete pLine2;
 			return;
 		}
 
