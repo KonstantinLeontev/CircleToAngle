@@ -370,17 +370,29 @@ public:
 		// Get coordinates from array.
 		AcGePoint3d pntIntersection;
 		pntIntersection = (AcGePoint3d)(ptArr[0]);
-		acutPrintf(_T("\nIntersection point is: %lf,%lf,%lf"), pntIntersection.x, pntIntersection.y, pntIntersection.z);
 
 		// Compute a center point of inscribed circle with given radius.
 		//---------------------------------------------------------
 
-		// Get vectors from lines.
-		AcGeVector3d vec1 = (pLine1->startPoint() - pLine1->endPoint());
+		// Get vectors from lines. Start point must be in the angle's vertex, so we need some check. 
+		AcGeVector3d vec1, vec2;
+		// Set up first vector.
+		if (pLine1->startPoint() == pntIntersection) {
+			vec1 = (pLine1->endPoint() - pLine1->startPoint());
+		}
+		else {
+			vec1 = (pLine1->startPoint() - pLine1->endPoint());
+		}
+		// Setup the second one.
+		if (pLine2->startPoint() == pntIntersection) {
+			vec2 = (pLine2->endPoint() - pLine2->startPoint());
+		}
+		else {
+			vec2 = (pLine2->startPoint() - pLine2->endPoint());
+		}
+		// We need normalize vectors to get correct result.
 		vec1.normalize();
-		AcGeVector3d vec2 = (pLine2->startPoint() - pLine2->endPoint());
 		vec2.normalize();
-		acutPrintf(_T("\nvec1 is: %lf,%lf,%lf; vec2 is: %lf,%lf,%lf"), vec1.x, vec1.y, vec1.z, vec2.x, vec2.y, vec2.z);
 
 		// Get a half of an angle between them.
 		double dAngle = vec1.angleTo(vec2) / 2.0;
@@ -390,31 +402,27 @@ public:
 		double dDistance = 0.0;
 		if (dSin) {
 			dDistance = dRadius / dSin;
-			acutPrintf(_T("\nsine is: %lf; angle is: %lf"), dSin, dAngle);
 		}
 		else {
-			acutPrintf(_T("\nFailed! sine is: %lf; angle is: %lf"), dSin, dAngle);
+			acutPrintf(_T("\nFailed! sine is 0"));
 			cleanUpEntities(pEntityCircle, pEntityLine1, pEntityLine2);
 			return;
 		}
 
 		// Get a bisect vector from angle vertex to destination point.
-		AcGeVector3d vecBisect = vec1 - vec2;
+		AcGeVector3d vecBisect = vec1 + vec2;
 		vecBisect.normalize();
 		// Now it points right to the destination.
 		vecBisect *= dDistance;
-		acutPrintf(_T("\ndDistance is: %lf; vecBisect is: %lf,%lf,%lf"), dDistance, vecBisect.x, vecBisect.y, vecBisect.z);
 		// Get the destination circle point.
 		AcGePoint3d pntDestCenter;
 		pntDestCenter.setToSum(pntIntersection, vecBisect);
-		acutPrintf(_T("\npntDestCenter is: %lf,%lf,%lf"), pntDestCenter.x, pntDestCenter.y, pntDestCenter.z);
 
 		// Move selected circle to those point.
 		//---------------------------------------------------------
 
 		// Get vector from source to destination point.
 		AcGeVector3d vecTransform(pntDestCenter - pntSourceCenter);
-		acutPrintf(_T("\nvecTransform is: %lf,%lf,%lf"), vecTransform.x, vecTransform.y, vecTransform.z);
 		pEntityCircle->transformBy(vecTransform);
 
 		// Clean up entities.
