@@ -145,7 +145,6 @@ public:
 		// Get the block table.
 		if ((es = acdbHostApplicationServices()->workingDatabase()->getBlockTable(pBlockTable, AcDb::kForRead)) != Acad::eOk) {
 			acutPrintf(_T("\nCouldn't open the block table!"));
-			delete pBlockTable;
 			return;
 		}
 
@@ -154,7 +153,7 @@ public:
 		if ((es = pBlockTable->getAt(ACDB_MODEL_SPACE, pBTRec, AcDb::kForWrite)) != Acad::eOk) {
 			acutPrintf(_T("\nCouldn't add the block table record!"));
 			delete pBTRec;
-			delete pBlockTable;
+			pBlockTable->close();
 			return;
 		}
 		pBlockTable->close();
@@ -198,7 +197,6 @@ public:
 		// Get the block table.
 		if ((es = acdbHostApplicationServices()->workingDatabase()->getBlockTable(pBlockTable, AcDb::kForRead)) != Acad::eOk) {
 			acutPrintf(_T("\nCouldn't open the block table!"));
-			delete pBlockTable;
 			return;
 		}
 
@@ -207,7 +205,7 @@ public:
 		if ((es = pBlockTable->getAt(ACDB_MODEL_SPACE, pBTRec, AcDb::kForWrite)) != Acad::eOk) {
 			acutPrintf(_T("\nCouldn't add the block table record!"));
 			delete pBTRec;
-			delete pBlockTable;
+			pBlockTable->close();
 			return;
 		}
 		pBlockTable->close();
@@ -243,16 +241,16 @@ public:
 		AcDbLine* pLine2 = new AcDbLine(AcGePoint3d(Pt2[0], Pt2[1], Pt2[2]), AcGePoint3d(Pt3[0], Pt3[1], Pt3[2]));
 		AcDbObjectId lineId2;
 		if ((es = pBTRec->appendAcDbEntity(lineId2, pLine2)) != Acad::eOk) {
-			delete pLine1;
+			pLine1->close();
 			delete pLine2;
 			pBTRec->close();
 			return;
 		}
 
 		// Clean up the pointers.
-		pBTRec->close();
 		pLine1->close();
 		pLine2->close();
+		pBTRec->close();
 	}
 
 	// Entity selection for task 5.3.
@@ -267,7 +265,7 @@ public:
 			if (acdbGetObjectId(objectId, adsName) == Acad::eOk) {
 				// Get pointer to selected entity.
 				AcDbEntity* pEntity;
-				if (acdbOpenAcDbEntity(pEntity, objectId, AcDb::kForRead) == Acad::eOk) {
+				if (acdbOpenAcDbEntity(pEntity, objectId, openMode) == Acad::eOk) {
 					return pEntity;
 				}
 			}
@@ -304,7 +302,7 @@ public:
 		//---------------------------------------------------------
 
 		// Get a circle.
-		if ((pEntityCircle = selectEntity(_T("Select a circle: \n"), objectId, ptPick, AcDb::kForRead)) == NULL) {
+		if ((pEntityCircle = selectEntity(_T("Select a circle: \n"), objectId, ptPick, AcDb::kForWrite)) == NULL) {
 			acutPrintf(L"\nSelection failed!");
 			return;
 		}
@@ -327,7 +325,7 @@ public:
 		//---------------------------------------------------------
 
 		// Get the first line.
-		if ((pEntityLine1 = selectEntity(_T("Select the first line: \n"), objectId, ptPick, AcDb::kForRead)) == NULL) {
+		if ((pEntityLine1 = selectEntity(_T("Select the first line: \n"), objectId, ptPick, AcDb::kForWrite)) == NULL) {
 			acutPrintf(_T("\nSelection failed!"));
 			cleanUpEntities(pEntityCircle);
 			return;
@@ -345,7 +343,7 @@ public:
 		//---------------------------------------------------------
 
 		// Get the second line.
-		if ((pEntityLine2 = selectEntity(_T("Select the second line: \n"), objectId, ptPick, AcDb::kForRead)) == NULL) {
+		if ((pEntityLine2 = selectEntity(_T("Select the second line: \n"), objectId, ptPick, AcDb::kForWrite)) == NULL) {
 			acutPrintf(_T("\nSelection failed!"));
 			cleanUpEntities(pEntityCircle, pEntityLine1);
 			return;
@@ -363,7 +361,7 @@ public:
 		//---------------------------------------------------------
 
 		// Fill AcGePoint3dArray with coordinates of the intersection point.
-		if ((es = pEntityLine1->intersectWith(pEntityLine2, AcDb::kOnBothOperands, ptArr)) != Acad::eOk) {
+		if ((es = pEntityLine1->intersectWith(pEntityLine2, AcDb::kExtendBoth, ptArr)) != Acad::eOk) {
 			acutPrintf(_T("\nIntersection failed!"), acadErrorStatusText(es));
 			cleanUpEntities(pEntityCircle, pEntityLine1, pEntityLine2);
 			return;
@@ -371,33 +369,55 @@ public:
 
 		// Get coordinates from array.
 		AcGePoint3d pntIntersection;
-		pntIntersection = (AcGePoint3d)(ptArr[0], ptArr[1], ptArr[2]);
+		pntIntersection = (AcGePoint3d)(ptArr[0]);
+		acutPrintf(_T("\nIntersection point is: %lf,%lf,%lf"), pntIntersection.x, pntIntersection.y, pntIntersection.z);
 
 		// Compute a center point of inscribed circle with given radius.
 		//---------------------------------------------------------
 
 		// Get vectors from lines.
 		AcGeVector3d vec1 = (pLine1->startPoint() - pLine1->endPoint());
-		vec1 = vec1.normalize();
+		vec1.normalize();
 		AcGeVector3d vec2 = (pLine2->startPoint() - pLine2->endPoint());
-		vec2 = vec2.normalize();
+		vec2.normalize();
+		acutPrintf(_T("\nvec1 is: %lf,%lf,%lf; vec2 is: %lf,%lf,%lf"), vec1.x, vec1.y, vec1.z, vec2.x, vec2.y, vec2.z);
+
 		// Get a half of an angle between them.
-		double dAngle = vec1.angleTo(vec1) / 2;
+		double dAngle = vec1.angleTo(vec2) / 2.0;
+
 		// Get a distance to destination point.
-		double dDistance = dRadius / sin(dAngle);
-		// Get a vector from angle vertex to destination point.
-		AcGeVector3d vecBisect = (vec1 + vec2) * dDistance;
+		double dSin = sin(dAngle);
+		double dDistance = 0.0;
+		if (dSin) {
+			dDistance = dRadius / dSin;
+			acutPrintf(_T("\nsine is: %lf; angle is: %lf"), dSin, dAngle);
+		}
+		else {
+			acutPrintf(_T("\nFailed! sine is: %lf; angle is: %lf"), dSin, dAngle);
+			cleanUpEntities(pEntityCircle, pEntityLine1, pEntityLine2);
+			return;
+		}
+
+		// Get a bisect vector from angle vertex to destination point.
+		AcGeVector3d vecBisect = vec1 - vec2;
+		vecBisect.normalize();
+		// Now it points right to the destination.
+		vecBisect *= dDistance;
+		acutPrintf(_T("\ndDistance is: %lf; vecBisect is: %lf,%lf,%lf"), dDistance, vecBisect.x, vecBisect.y, vecBisect.z);
 		// Get the destination circle point.
-		AcGePoint3d pntDestCenter = pntIntersection.setToSum(pntIntersection, vecBisect);
+		AcGePoint3d pntDestCenter;
+		pntDestCenter.setToSum(pntIntersection, vecBisect);
+		acutPrintf(_T("\npntDestCenter is: %lf,%lf,%lf"), pntDestCenter.x, pntDestCenter.y, pntDestCenter.z);
 
 		// Move selected circle to those point.
 		//---------------------------------------------------------
 
 		// Get vector from source to destination point.
-		AcGeVector3d vecTransform = AcGeVector3d(pntSourceCenter[0], pntSourceCenter[1], pntSourceCenter[2]) + AcGeVector3d(pntDestCenter[0], pntDestCenter[1], pntDestCenter[2]);
+		AcGeVector3d vecTransform(pntDestCenter - pntSourceCenter);
+		acutPrintf(_T("\nvecTransform is: %lf,%lf,%lf"), vecTransform.x, vecTransform.y, vecTransform.z);
 		pEntityCircle->transformBy(vecTransform);
 
-		// Clean up pointers.
+		// Clean up entities.
 		cleanUpEntities(pEntityCircle, pEntityLine1, pEntityLine2);
 	}
 } ;
